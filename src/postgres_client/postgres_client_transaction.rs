@@ -21,6 +21,7 @@ use {
             v0::{self, LoadedAddresses, MessageAddressTableLookup},
             Message, MessageHeader, SanitizedMessage,
         },
+        signer::keypair::Keypair,
         transaction::TransactionError,
     },
     solana_transaction_status::{
@@ -137,7 +138,7 @@ pub struct DbLoadedMessageV0 {
 }
 
 pub struct DbTransaction {
-    pub signature: Vec<u8>,
+    pub signature: String,
     pub is_vote: bool,
     pub slot: i64,
     pub message_type: i16,
@@ -145,7 +146,7 @@ pub struct DbTransaction {
     pub v0_loaded_message: Option<DbLoadedMessageV0>,
     pub message_hash: Vec<u8>,
     pub meta: DbTransactionStatusMeta,
-    pub signatures: Vec<Vec<u8>>,
+    pub signatures: Vec<String>,
 }
 
 pub struct LogTransactionRequest {
@@ -467,7 +468,10 @@ impl From<&TransactionStatusMeta> for DbTransactionStatusMeta {
 
 fn build_db_transaction(slot: u64, transaction_info: &ReplicaTransactionInfo) -> DbTransaction {
     DbTransaction {
-        signature: transaction_info.signature.as_ref().to_vec(),
+        signature: match Keypair::from_bytes(transaction_info.signature.as_ref()) {
+            Ok(keypair) => keypair.to_base58_string(),
+            Err(_) => "".to_string(),
+        },
         is_vote: transaction_info.is_vote,
         slot: slot as i64,
         message_type: match transaction_info.transaction.message() {
@@ -488,7 +492,10 @@ fn build_db_transaction(slot: u64, transaction_info: &ReplicaTransactionInfo) ->
             .transaction
             .signatures()
             .iter()
-            .map(|signature| signature.as_ref().to_vec())
+            .map(|signature| match Keypair::from_bytes(signature.as_ref()) {
+                Ok(keypair) => keypair.to_base58_string(),
+                Err(_) => "".to_string(),
+            })
             .collect(),
         message_hash: transaction_info
             .transaction
@@ -1251,7 +1258,13 @@ pub(crate) mod tests {
         transaction: &ReplicaTransactionInfo,
         db_transaction: &DbTransaction,
     ) {
-        assert_eq!(transaction.signature.as_ref(), db_transaction.signature);
+        assert_eq!(
+            match Keypair::from_bytes(transaction.signature.as_ref()) {
+                Ok(keypair) => keypair.to_base58_string(),
+                Err(_) => "".to_string(),
+            },
+            db_transaction.signature
+        );
         assert_eq!(transaction.is_vote, db_transaction.is_vote);
         assert_eq!(slot, db_transaction.slot as u64);
         match transaction.transaction.message() {
@@ -1278,7 +1291,10 @@ pub(crate) mod tests {
 
         for i in 0..transaction.transaction.signatures().len() {
             assert_eq!(
-                transaction.transaction.signatures()[i].as_ref(),
+                match Keypair::from_bytes(transaction.transaction.signatures()[i].as_ref()) {
+                    Ok(keypair) => keypair.to_base58_string(),
+                    Err(_) => "".to_string(),
+                },
                 db_transaction.signatures[i]
             );
         }
