@@ -146,12 +146,12 @@ CREATE TYPE "LoadedMessageV0" AS (
 -- The table storing transactions
 CREATE TABLE transaction (
     slot BIGINT NOT NULL,
-    signature BYTEA NOT NULL,
+    signature TEXT NOT NULL,
     is_vote BOOL NOT NULL,
     message_type SMALLINT, -- 0: legacy, 1: v0 message
     legacy_message "TransactionMessage",
     v0_loaded_message "LoadedMessageV0",
-    signatures BYTEA[],
+    signatures TEXT[],
     message_hash BYTEA,
     meta "TransactionStatusMeta",
     updated_on TIMESTAMP NOT NULL,
