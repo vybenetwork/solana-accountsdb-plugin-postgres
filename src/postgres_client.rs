@@ -406,9 +406,9 @@ impl SimplePostgresClient {
         let result = client.execute(
             statement,
             &[
-                &account.pubkey(),
+                &bs58::encode(&account.pubkey).into_string(),
                 &account.slot,
-                &account.owner(),
+                &bs58::encode(&account.owner).into_string(),
                 &lamports,
                 &account.executable(),
                 &rent_epoch,
@@ -442,9 +442,9 @@ impl SimplePostgresClient {
         let result = client.execute(
             statement,
             &[
-                &account.pubkey(),
+                &bs58::encode(&account.pubkey).into_string(),
                 &account.slot,
-                &account.owner(),
+                &bs58::encode(&account.owner).into_string(),
                 &lamports,
                 &account.executable(),
                 &rent_epoch,
@@ -485,6 +485,9 @@ impl SimplePostgresClient {
         &mut self,
         account: DbAccountInfo,
     ) -> Result<(), AccountsDbPluginError> {
+        let base58_pubkey = bs58::encode(&account.pubkey).into_string();
+        let base58_owner = bs58::encode(&account.owner).into_string();
+
         self.pending_account_updates.push(account);
 
         if self.pending_account_updates.len() == self.batch_size {
@@ -496,9 +499,9 @@ impl SimplePostgresClient {
             for j in 0..self.batch_size {
                 let account = &self.pending_account_updates[j];
 
-                values.push(&account.pubkey);
+                values.push(&base58_pubkey);
                 values.push(&account.slot);
-                values.push(&account.owner);
+                values.push(&base58_owner);
                 values.push(&account.lamports);
                 values.push(&account.executable);
                 values.push(&account.rent_epoch);
