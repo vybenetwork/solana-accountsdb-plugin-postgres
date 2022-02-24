@@ -5,7 +5,7 @@
 
 
 CREATE TABLE account (
-    pubkey TEXT,
+    pubkey TEXT PRIMARY KEY,
     owner TEXT,
     lamports BIGINT NOT NULL,
     slot BIGINT NOT NULL,
@@ -13,8 +13,7 @@ CREATE TABLE account (
     rent_epoch BIGINT NOT NULL,
     data BYTEA,
     write_version BIGINT NOT NULL,
-    updated_on TIMESTAMP NOT NULL,
-    CONSTRAINT account_pk PRIMARY KEY (pubkey, slot)
+    updated_on TIMESTAMP NOT NULL
 );
 
 -- The table storing slot information
@@ -182,8 +181,7 @@ CREATE TABLE account_audit (
     rent_epoch BIGINT NOT NULL,
     data BYTEA,
     write_version BIGINT NOT NULL,
-    updated_on TIMESTAMP NOT NULL,
-    CONSTRAINT account_audit_pk PRIMARY KEY (pubkey, slot)
+    updated_on TIMESTAMP NOT NULL
 );
 
 CREATE INDEX account_audit_account_key ON  account_audit (pubkey, write_version);

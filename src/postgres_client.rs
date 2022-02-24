@@ -68,9 +68,9 @@ impl Eq for DbAccountInfo {}
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct DbAccountInfo {
-    pub pubkey: Vec<u8>,
+    pub pubkey: String,
     pub lamports: i64,
-    pub owner: Vec<u8>,
+    pub owner: String,
     pub executable: bool,
     pub rent_epoch: i64,
     pub data: Vec<u8>,
@@ -95,9 +95,9 @@ impl DbAccountInfo {
     fn new<T: ReadableAccountInfo>(account: &T, slot: u64) -> DbAccountInfo {
         let data = account.data().to_vec();
         Self {
-            pubkey: account.pubkey().to_vec(),
+            pubkey: account.pubkey().to_string(),
             lamports: account.lamports() as i64,
-            owner: account.owner().to_vec(),
+            owner: account.owner().to_string(),
             executable: account.executable(),
             rent_epoch: account.rent_epoch() as i64,
             data,
@@ -108,8 +108,8 @@ impl DbAccountInfo {
 }
 
 pub trait ReadableAccountInfo: Sized {
-    fn pubkey(&self) -> &[u8];
-    fn owner(&self) -> &[u8];
+    fn pubkey(&self) -> String;
+    fn owner(&self) -> String;
     fn lamports(&self) -> i64;
     fn executable(&self) -> bool;
     fn rent_epoch(&self) -> i64;
@@ -118,12 +118,12 @@ pub trait ReadableAccountInfo: Sized {
 }
 
 impl ReadableAccountInfo for DbAccountInfo {
-    fn pubkey(&self) -> &[u8] {
-        &self.pubkey
+    fn pubkey(&self) -> String {
+        self.pubkey.to_string()
     }
 
-    fn owner(&self) -> &[u8] {
-        &self.owner
+    fn owner(&self) -> String {
+        self.owner.to_string()
     }
 
     fn lamports(&self) -> i64 {
@@ -148,12 +148,12 @@ impl ReadableAccountInfo for DbAccountInfo {
 }
 
 impl<'a> ReadableAccountInfo for ReplicaAccountInfo<'a> {
-    fn pubkey(&self) -> &[u8] {
-        self.pubkey
+    fn pubkey(&self) -> String {
+        bs58::encode(&self.pubkey).into_string()
     }
 
-    fn owner(&self) -> &[u8] {
-        self.owner
+    fn owner(&self) -> String {
+        bs58::encode(self.owner).into_string()
     }
 
     fn lamports(&self) -> i64 {
@@ -279,7 +279,7 @@ impl SimplePostgresClient {
             }
         }
 
-        let handle_conflict = "ON CONFLICT (pubkey, slot) DO UPDATE SET slot=excluded.slot, owner=excluded.owner, lamports=excluded.lamports, executable=excluded.executable, rent_epoch=excluded.rent_epoch, \
+        let handle_conflict = "ON CONFLICT (pubkey) DO UPDATE SET slot=excluded.slot, owner=excluded.owner, lamports=excluded.lamports, executable=excluded.executable, rent_epoch=excluded.rent_epoch, \
             data=excluded.data, write_version=excluded.write_version, updated_on=excluded.updated_on WHERE acct.slot < excluded.slot OR (\
             acct.slot = excluded.slot AND acct.write_version < excluded.write_version)";
 
@@ -307,7 +307,7 @@ impl SimplePostgresClient {
     ) -> Result<Statement, AccountsDbPluginError> {
         let stmt = "INSERT INTO account AS acct (pubkey, slot, owner, lamports, executable, rent_epoch, data, write_version, updated_on) \
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
-        ON CONFLICT (pubkey, slot) DO UPDATE SET slot=excluded.slot, owner=excluded.owner, lamports=excluded.lamports, executable=excluded.executable, rent_epoch=excluded.rent_epoch, \
+        ON CONFLICT (pubkey) DO UPDATE SET slot=excluded.slot, owner=excluded.owner, lamports=excluded.lamports, executable=excluded.executable, rent_epoch=excluded.rent_epoch, \
         data=excluded.data, write_version=excluded.write_version, updated_on=excluded.updated_on  WHERE acct.slot < excluded.slot OR (\
         acct.slot = excluded.slot AND acct.write_version < excluded.write_version)";
 
@@ -406,9 +406,9 @@ impl SimplePostgresClient {
         let result = client.execute(
             statement,
             &[
-                &bs58::encode(&account.pubkey).into_string(),
+                &account.pubkey,
                 &account.slot,
-                &bs58::encode(&account.owner).into_string(),
+                &account.owner,
                 &lamports,
                 &account.executable(),
                 &rent_epoch,
@@ -442,9 +442,9 @@ impl SimplePostgresClient {
         let result = client.execute(
             statement,
             &[
-                &bs58::encode(&account.pubkey).into_string(),
+                &account.pubkey,
                 &account.slot,
-                &bs58::encode(&account.owner).into_string(),
+                &account.owner,
                 &lamports,
                 &account.executable(),
                 &rent_epoch,
@@ -485,9 +485,6 @@ impl SimplePostgresClient {
         &mut self,
         account: DbAccountInfo,
     ) -> Result<(), AccountsDbPluginError> {
-        let base58_pubkey = bs58::encode(&account.pubkey).into_string();
-        let base58_owner = bs58::encode(&account.owner).into_string();
-
         self.pending_account_updates.push(account);
 
         if self.pending_account_updates.len() == self.batch_size {
@@ -496,12 +493,13 @@ impl SimplePostgresClient {
             let mut values: Vec<&(dyn types::ToSql + Sync)> =
                 Vec::with_capacity(self.batch_size * ACCOUNT_COLUMN_COUNT);
             let updated_on = Utc::now().naive_utc();
+
             for j in 0..self.batch_size {
                 let account = &self.pending_account_updates[j];
 
-                values.push(&base58_pubkey);
+                values.push(&account.pubkey);
                 values.push(&account.slot);
-                values.push(&base58_owner);
+                values.push(&account.owner);
                 values.push(&account.lamports);
                 values.push(&account.executable);
                 values.push(&account.rent_epoch);
